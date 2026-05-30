@@ -1,0 +1,186 @@
+// Global Configuration matching your specific sheet ID
+const SPREADSHEET_ID = "1YV3lC2ylbcDszFBIrhX53CR2iri1gNxqdYAGD48Xvbw"; 
+
+/**
+ * Serves the core user interface when the web app URL is loaded
+ */
+function doGet() {
+  return HtmlService.createTemplateFromFile('Index')
+      .evaluate()
+      .setTitle('NumberDe - Connect with Local Experts')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Handle Client Login Validation
+ * Loops row-by-row through the 'index' sheet tab to verify client credentials
+ */
+function verifyClientLogin(userid, password) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName("index");
+    
+    if (!sheet) {
+      return { success: false, message: "System Error: 'index' sheet tab not found!" };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    // Loop row-by-row skipping header (Row 1 is index 0)
+    // Column Mapping: A: userid (0), B: pass (1), C: name (2), D: location (3), E: contact (4)
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0].toString().trim() === userid.toString().trim() && 
+          data[i][1].toString().trim() === password.toString().trim()) {
+        
+        return { 
+          success: true, 
+          message: "Login verified successfully!", 
+          clientName: data[i][2] // Dynamic name from column C
+        };
+      }
+    }
+    
+    return { success: false, message: "Incorrect Client User ID or Password. Please try again or register." };
+    
+  } catch (e) {
+    return { success: false, message: "Login Script Error: " + e.toString() };
+  }
+}
+
+/**
+ * Handle Client Registration (Saves to the 'index' sheet tab)
+ */
+function registerClient(clientData) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName("index");
+    
+    if (!sheet) {
+      return { success: false, message: "System Error: 'index' sheet tab not found!" };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == clientData.userid) {
+        return { success: false, message: "User ID '" + clientData.userid + "' is already taken." };
+      }
+    }
+    
+    // Append to index sheet matching columns: A: userid, B: pass, C: name, D: location, E: contact
+    sheet.appendRow([
+      clientData.userid,
+      clientData.pass,
+      clientData.name,
+      clientData.location,
+      clientData.contact
+    ]);
+    
+    return { success: true, message: "Client Account Created Successfully! You can now log in." };
+    
+  } catch (error) {
+    return { success: false, message: "Database Error: " + error.toString() };
+  }
+}
+
+/**
+ * Handle Worker Registration (Appends details into respective profession tabs)
+ */
+function registerWorker(workerData) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheetName = workerData.work.toLowerCase().trim();
+    const sheet = ss.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      return { success: false, message: "Category sheet '" + sheetName + "' does not exist!" };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] == workerData.userid) {
+        return { success: false, message: "User ID already registered under " + sheetName + "!" };
+      }
+    }
+    
+    // Columns: A: userid, B: pass, C: name, D: work, E: location, F: contact, G: description
+    sheet.appendRow([
+      workerData.userid,
+      workerData.pass,
+      workerData.name,
+      workerData.work,
+      workerData.location,
+      workerData.contact,
+      workerData.description || "No extra description provided."
+    ]);
+    
+    return { success: true, message: "Worker Profile saved to " + sheetName + " successfully!" };
+    
+  } catch (error) {
+    return { success: false, message: "Server Database Error: " + error.toString() };
+  }
+}
+
+/**
+ * Handle Worker Login Validation
+ */
+function verifyWorkerLogin(userid, password) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const categories = ["labor", "electrician", "maid", "driver", "plumber", "housekeeping"];
+    
+    for (let i = 0; i < categories.length; i++) {
+      const sheet = ss.getSheetByName(categories[i]);
+      if (sheet) {
+        const data = sheet.getDataRange().getValues();
+        for (let j = 1; j < data.length; j++) {
+          if (data[j][0] == userid && data[j][1] == password) {
+            return { 
+              success: true, 
+              message: "Login verified successfully!", 
+              workerName: data[j][2], 
+              profession: data[j][3] 
+            };
+          }
+        }
+      }
+    }
+    return { success: false, message: "Invalid Worker credentials." };
+  } catch(e) {
+    return { success: false, message: "Runtime Error: " + e.toString() };
+  }
+}
+
+/**
+ * Fetches worker records from a specific category sheet tab
+ */
+function getWorkersByCategory(category) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(category.toLowerCase().trim());
+    
+    if (!sheet) return { success: false, data: [] };
+    
+    const rawData = sheet.getDataRange().getValues();
+    if (rawData.length <= 1) return { success: true, data: [] };
+    
+    const formattedWorkers = [];
+    
+    for (let i = 1; i < rawData.length; i++) {
+      if (!rawData[i][0]) continue; 
+      formattedWorkers.push({
+        userid: rawData[i][0],
+        name: rawData[i][2],
+        work: rawData[i][3],
+        location: rawData[i][4],
+        contact: rawData[i][5],
+        description: rawData[i][6] || ""
+      });
+    }
+    
+    return { success: true, data: formattedWorkers };
+    
+  } catch (error) {
+    return { success: false, data: [] };
+  }
+}

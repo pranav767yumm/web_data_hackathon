@@ -1,4 +1,4 @@
-// Global Configuration matching your specific sheet ID
+// Global Configuration matching your specific sheet ID and i will be practinconig here
 const SPREADSHEET_ID = "1YV3lC2ylbcDszFBIrhX53CR2iri1gNxqdYAGD48Xvbw"; 
 
 /**
